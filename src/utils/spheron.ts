@@ -18,6 +18,7 @@ export interface ISpheronService {
     closeDeployment(deploymentId: string): Promise<any>;
     getBalance(token: string): Promise<string>;
     deposit(amount: string, token: string): Promise<any>;
+    withdraw(amount: string, token: string): Promise<any>;
 }
 
 export interface ComputeConfig {
@@ -164,7 +165,7 @@ export class SpheronService implements ISpheronService {
         };
     }
 
-    async getBalance(token: string): Promise<string> {
+    async getBalance(token: string): Promise<any> {
         this.ensureInitialized();
         try {
             return await this.sdk!.escrow.getUserBalance(token, this.walletAddress);
@@ -175,19 +176,53 @@ export class SpheronService implements ISpheronService {
 
     async deposit(amount: string, token: string): Promise<any> {
         this.ensureInitialized();
-        try {
-            return await this.sdk!.escrow.depositBalance({
-                token,
-                amount,
-                onSuccessCallback: (receipt) => {
-                    console.log("Successfully deposited:", receipt);
-                },
-                onFailureCallback: (error) => {
-                    console.error("Deposit failed:", error);
-                },
-            });
-        } catch (error: any) {
-            throw new Error(`Failed to deposit: ${error.message}`);
+        const maxRetries = 3;
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await this.sdk!.escrow.depositBalance({
+                    token,
+                    amount,
+                    onSuccessCallback: (receipt) => {
+                        console.log("Successfully deposited:", receipt);
+                    },
+                    onFailureCallback: (error) => {
+                        console.error("Deposit failed:", error);
+                    },
+                });
+            } catch (error: any) {
+                if (attempt === maxRetries) {
+                    throw new Error(`Failed to deposit after ${maxRetries} attempts: ${error.message}`);
+                }
+                await delay(1000 * attempt); // Exponential backoff: 1s, 2s, 3s
+            }
+        }
+    }
+
+    async withdraw(amount: string, token: string): Promise<any> {
+        this.ensureInitialized();
+        const maxRetries = 3;
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await this.sdk!.escrow.withdrawBalance({
+                    token,
+                    amount,
+                    onSuccessCallback: (receipt) => {
+                        console.log("Successfully withdrawn:", receipt);
+                    },
+                    onFailureCallback: (error) => {
+                        console.error("Withdrawal failed:", error);
+                    },
+                });
+            } catch (error: any) {
+                if (attempt === maxRetries) {
+                    throw new Error(`Failed to withdraw after ${maxRetries} attempts: ${error.message}`);
+                }
+                await delay(1000 * attempt); // Exponential backoff: 1s, 2s, 3s
+            }
         }
     }
 
@@ -248,114 +283,212 @@ deployment:
     }
 
 
-    async monitorAndRedeployIfNeeded() {
-        const lock = DeploymentLock.getInstance();
 
-        try {
-            const activeLeases = await this.getActiveLeases();
+}
 
-            if (!activeLeases.leases || activeLeases.leases.length === 0) {
-                elizaLogger.warn("No active deployments found");
+
+async function rotateWalletAndFunds(spheronService: SpheronService, minimumDepositAmount: string, token: string = 'CST'): Promise<{ newWallet: { publicKey: string; privateKey: string }, newSpheronService: SpheronService }> {
+    try {
+        // Get current balance
+        const balanceInfo = await spheronService.getBalance(token);
+        if (!balanceInfo) {
+            throw new Error('No balance to rotate');
+        }
+
+        // Ensure unlockedBalance and decimals exist and are valid
+        if (!balanceInfo.unlockedBalance || !balanceInfo.token?.decimal) {
+            throw new Error('Invalid balance info structure');
+        }
+
+        // Convert to BigInt for precise calculation
+        const unlockedBalance = BigInt(balanceInfo.unlockedBalance);
+        const decimal = BigInt(balanceInfo.token.decimal);
+        const divisor = BigInt(10) ** decimal;
+
+        // Calculate withdrawal amount and convert to string with proper decimal places
+        const withdrawalAmount = (Number(unlockedBalance) / Number(divisor)) - 0.001
+
+        if (!withdrawalAmount) {
+            throw new Error('No unlocked balance available to rotate');
+        }
+
+        // Create new wallet
+        const newWallet = SpheronService.createEVMWallet();
+        elizaLogger.info("New wallet created for the new agent...");
+
+        // Create provider and wallet instances
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || 'https://spheron-devnet-eth.rpc.caldera.xyz/http');
+        const oldWallet = new ethers.Wallet(process.env.SPHERON_PRIVATE_KEY!, provider);
+
+        // Withdraw unlocked CST from current wallet
+        await spheronService.withdraw(withdrawalAmount.toString(), token);
+        elizaLogger.info("Withdrawn all the current funds from current wallet, waiting for sometime...");
+        // Wait a few seconds for withdrawal to process
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        // Get CST token contract
+        const cstTokenAddress = process.env.CST_TOKEN_ADDRESS || '0xA76CF27b51eb93c417CcE78af5cf0a3E2D9aa55c';
+        const cstAbi = ["function transfer(address to, uint256 amount) returns (bool)", "function balanceOf(address account) view returns (uint256)"];
+        const cstContract = new ethers.Contract(cstTokenAddress, cstAbi, oldWallet);
+
+        // Get the total balance after withdrawal
+        const totalBalance = await cstContract.balanceOf(oldWallet.address);
+        elizaLogger.info("Total balance after withdrawal: ", totalBalance);
+        // Transfer all CST tokens to new wallet
+        if (totalBalance > 0) {
+            const cstTx = await cstContract.transfer(newWallet.publicKey, totalBalance);
+            await cstTx.wait();
+            elizaLogger.info("Transferred all the funds to new wallet...");
+        }
+
+        // Transfer ETH (leave 0.001 for potential future gas fees)
+        const ethBalance = await provider.getBalance(oldWallet.address);
+        const reserveAmount = ethers.parseEther("0.001");
+        const transferAmount = ethBalance - reserveAmount;
+        elizaLogger.info("ETH balance on the current agent wallet: ", ethBalance);
+
+        if (transferAmount > 0) {
+            const ethTx = await oldWallet.sendTransaction({
+                to: newWallet.publicKey,
+                value: transferAmount
+            });
+            await ethTx.wait();
+            elizaLogger.info("Transferred ETH to new agent wallet...");
+        }
+
+        // Create new instance with new wallet
+        const newSpheronService = new SpheronService(
+            newWallet.privateKey,
+            newWallet.publicKey,
+            process.env.SPHERON_PROVIDER_PROXY_URL || `http://localhost:${process.env.SPHERON_PROXY_PORT || 3040}`
+        );
+
+        // Deposit minimum amount to new wallet
+        await newSpheronService.deposit(minimumDepositAmount, token);
+        elizaLogger.info("Deposited minimum amount to new agent wallet, waiting for sometime...");
+        // Wait a few seconds for withdrawal to process
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        return {
+            newWallet,
+            newSpheronService
+        };
+    } catch (error: any) {
+        throw new Error(`Failed to rotate wallet and funds: ${error.message}`);
+    }
+}
+
+async function monitorAndRedeployIfNeeded(spheronService: SpheronService) {
+    const lock = DeploymentLock.getInstance();
+
+    try {
+        const activeLeases = await spheronService.getActiveLeases();
+
+        if (!activeLeases.leases || activeLeases.leases.length === 0) {
+            elizaLogger.warn("No active deployments found");
+            return;
+        }
+
+        const lease = activeLeases.leases[0];
+        const deploymentId = lease.leaseId;
+        const remainingTime = await spheronService.getDeploymentRemainingTime(deploymentId);
+
+        if (remainingTime <= computeConfig.redeployThreshold) {
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = remainingTime % 60;
+            elizaLogger.log(`New Agent needs to be deployed (${minutes}m ${seconds}s remaining)`);
+
+            // Try to acquire the lock
+            if (!await lock.acquire()) {
+                elizaLogger.info("Deployment already in progress, skipping...");
                 return;
             }
 
-            const lease = activeLeases.leases[0];
-            const deploymentId = lease.leaseId;
-            const remainingTime = await this.getDeploymentRemainingTime(deploymentId);
+            elizaLogger.info("Deployment lock acquired, starting deployment process...");
 
-            if (remainingTime <= computeConfig.redeployThreshold) {
-                elizaLogger.log(`New Agent needs to be deployed (${remainingTime}s remaining)`);
+            try {
+                // Upload SQLite database to Lighthouse
+                if (process.env.LIGHTHOUSE_API_KEY) {
+                    const uploadService = new UploadService(process.env.LIGHTHOUSE_API_KEY || '');
+                    const dbPath = path.join(__dirname, "../data/db.sqlite");
 
-                // Try to acquire the lock
-                if (!await lock.acquire()) {
-                    elizaLogger.info("Deployment already in progress, skipping...");
-                    return;
+                    try {
+                        const uploadResponse = await uploadService.upload(dbPath);
+                        elizaLogger.success(`Database uploaded. Hash: ${uploadResponse.data.Hash}`);
+
+                        process.env.BACKUP_DB_URL = `https://gateway.lighthouse.storage/ipfs/${uploadResponse.data.Hash}`;
+                    } catch (error) {
+                        elizaLogger.error("Failed to upload database:", error);
+                        return;
+                    }
                 }
+                const { newWallet, newSpheronService } = await rotateWalletAndFunds(spheronService, '15', 'CST');
 
-                elizaLogger.info("Deployment lock acquired, starting deployment process...");
+                // Generate new deployment config based on environment
+                const config = computeConfig;
+                config.env = [
+                    ...Object.entries(process.env)
+                        .filter(([name]) => name === name.toUpperCase())
+                        .map(([name, value]) => ({ name, value: value || '' })),
+                    ...(config.env || []),
+                    { name: 'SPHERON_WALLET_ADDRESS', value: newWallet.publicKey },
+                    { name: 'SPHERON_PRIVATE_KEY', value: newWallet.privateKey },
+                ]
 
-                try {
-                    // Upload SQLite database to Lighthouse
-                    if (process.env.LIGHTHOUSE_API_KEY) {
-                        const uploadService = new UploadService(process.env.LIGHTHOUSE_API_KEY || '');
-                        const dbPath = path.join(__dirname, "../data/db.sqlite");
+                // Generate manifest
+                const manifest = newSpheronService.generateSpheronYaml(config);
+                elizaLogger.info("Agent creation happening with manifest: \n", manifest);
 
-                        try {
-                            const uploadResponse = await uploadService.upload(dbPath);
-                            elizaLogger.success(`Database uploaded. Hash: ${uploadResponse.data.Hash}`);
+                // Create new deployment
+                const newDeployment = await newSpheronService.createDeployment(manifest);
+                elizaLogger.success(`Created new agent deployment: ${newDeployment.leaseId}`);
 
-                            process.env.BACKUP_DB_URL = `https://gateway.lighthouse.storage/ipfs/${uploadResponse.data.Hash}`;
-                        } catch (error) {
-                            elizaLogger.error("Failed to upload database:", error);
-                            return;
-                        }
-                    }
+                // Wait for new deployment to be ready
+                let isReady = false;
+                const maxAttempts = 42; // 6 minutes with 10-second intervals
+                let attempts = 0;
 
-                    // Generate new deployment config based on environment
-                    const config = computeConfig;
-                    config.env = [
-                        ...Object.entries(process.env)
-                            .filter(([name]) => name === name.toUpperCase())
-                            .map(([name, value]) => ({ name, value: value || '' })),
-                        ...(config.env || [])
-                    ]
+                while (!isReady && attempts < maxAttempts) {
+                    const status = await newSpheronService.getDeploymentStatus(newDeployment.leaseId);
+                    console.log(`Deployment status (attempt ${attempts + 1}/${maxAttempts}):`, status);
 
-                    // Generate manifest
-                    const manifest = this.generateSpheronYaml(config);
-                    elizaLogger.info("Agent creation happening with manifest: \n", manifest);
-
-                    // Create new deployment
-                    const newDeployment = await this.createDeployment(manifest);
-                    elizaLogger.success(`Created new agent deployment: ${newDeployment.leaseId}`);
-
-                    // Wait for new deployment to be ready
-                    let isReady = false;
-                    const maxAttempts = 42; // 6 minutes with 10-second intervals
-                    let attempts = 0;
-
-                    while (!isReady && attempts < maxAttempts) {
-                        const status = await this.getDeploymentStatus(newDeployment.leaseId);
-                        console.log(`Deployment status (attempt ${attempts + 1}/${maxAttempts}):`, status);
-
-                        if (status) {
-                            isReady = true;
-                        } else {
-                            await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds between checks
-                            attempts++;
-                        }
-                    }
-
-                    if (isReady) {
-                        await this.closeDeployment(deploymentId);
-                        elizaLogger.success(`Closed old agent: ${deploymentId}`);
-                        elizaLogger.info("New agent created successfully, closing old agent process...");
+                    if (status) {
+                        isReady = true;
                     } else {
-                        elizaLogger.error(`New agent not ready after ${maxAttempts} attempts`);
-                        throw new Error('Deployment timeout');
+                        await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds between checks
+                        attempts++;
                     }
-                } catch (error) {
-                    elizaLogger.error("Agent creation failed:", error);
-                    throw error;
-                } finally {
-                    // Make sure to release the lock even if deployment fails
-                    setTimeout(() => {
-                        lock.release();
-                        elizaLogger.info("Agent creation lock released");
-                        process.exit(0);
-                    }, 30000);
                 }
-            } else {
-                const minutes = Math.floor(remainingTime / 60);
-                const seconds = remainingTime % 60;
-                elizaLogger.info(`Skipping creating new agent, enough time left (${minutes}m ${seconds}s) to spin a new agent`);
-            }
-        } catch (error) {
-            elizaLogger.error("Error in agent creation monitoring:", error);
-            // Make sure to release the lock in case of unexpected errors
-            lock.release();
-        }
-    }
 
+                if (isReady) {
+                    await spheronService.closeDeployment(deploymentId);
+                    elizaLogger.success(`Closed old agent: ${deploymentId}`);
+                    elizaLogger.info("New agent created successfully, closing old agent process...");
+                } else {
+                    elizaLogger.error(`New agent not ready after ${maxAttempts} attempts`);
+                    throw new Error('Deployment timeout');
+                }
+            } catch (error) {
+                elizaLogger.error("Agent creation failed:", error);
+                throw error;
+            } finally {
+                // Make sure to release the lock even if deployment fails
+                setTimeout(() => {
+                    lock.release();
+                    elizaLogger.info("Agent creation lock released");
+                    process.exit(0);
+                }, 30000);
+            }
+        } else {
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = remainingTime % 60;
+            elizaLogger.info(`Skipping creating new agent, enough time left (${minutes}m ${seconds}s) to spin a new agent`);
+        }
+    } catch (error) {
+        elizaLogger.error("Error in agent creation monitoring:", error);
+        // Make sure to release the lock in case of unexpected errors
+        lock.release();
+    }
 }
 
 export const startService = async () => {
@@ -386,7 +519,7 @@ export const startService = async () => {
             return;
         }
 
-        spheronService.monitorAndRedeployIfNeeded()
+        monitorAndRedeployIfNeeded(spheronService)
             .catch(error => {
                 elizaLogger.error("Error in agent creation monitoring interval:", error);
             });

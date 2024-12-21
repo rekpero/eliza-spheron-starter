@@ -12,7 +12,7 @@ export const computeConfig: ComputeConfig = {
         memory: "8Gi",
         storage: "100Gi"
     },
-    duration: "15min",
+    duration: "1h",
     mode: "provider",
     redeployThreshold: 10 * 60,
     deployMonitorInterval: 30 * 1000,
