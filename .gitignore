@@ -1,7 +1,8 @@
-*.ts
+
 !index.ts
 !character.ts
 .env
+.env.local
 node_modules
 
 db.sqlite

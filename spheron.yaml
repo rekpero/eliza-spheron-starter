@@ -1,0 +1,50 @@
+version: "1.0"
+
+services:
+  eliza-spheron-starter:
+    image: rekpero/eliza-spheron-starter:latest
+    pull_policy: Always
+    expose:
+      - port: 3000
+        as: 3000
+        to:
+          - global: true
+    env:
+      - OPENROUTER_API_KEY=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
+      - OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct
+      - SERVER_PORT=3000
+      - SPHERON_PRIVATE_KEY=
+      - SPHERON_WALLET_ADDRESS=
+      - SPHERON_PROXY_PORT=3040
+      # - LIGHTHOUSE_API_KEY=e915cb3e.5d7a45a762d5448da8c1fcfcb628a30e
+      - CHARACTER_FILE_URL=https://bafkreidnbcxbs7oco62fqrcc5z5del4po3b7gef2l5keikwey46gnmqqia.ipfs.w3s.link/
+profiles:
+  name: eliza-spheron-starter
+  duration: 15min
+  mode: provider
+  tier:
+    - community
+    - secure
+  compute:
+    eliza-spheron-starter:
+      resources:
+        cpu:
+          units: 8
+        memory:
+          size: 16Gi
+        storage:
+          - size: 100Gi
+  placement:
+    westcoast:
+      attributes:
+        region: us-central
+      pricing:
+        eliza-spheron-starter:
+          token: CST
+          amount: 1
+
+deployment:
+  eliza-spheron-starter:
+    westcoast:
+      profile: eliza-spheron-starter
+      count: 1

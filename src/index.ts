@@ -24,15 +24,15 @@ import {
 } from "@ai16z/eliza";
 import { bootstrapPlugin } from "@ai16z/plugin-bootstrap";
 import { solanaPlugin } from "@ai16z/plugin-solana";
-import { nodePlugin } from "@ai16z/plugin-node";
+import { createNodePlugin } from "@ai16z/plugin-node";
 import Database from "better-sqlite3";
 import fs from "fs";
-import readline from "readline";
 import yargs from "yargs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { character } from "./character.ts";
 import type { DirectClient } from "@ai16z/client-direct";
+import { startService } from "./utils/spheron.ts";
 
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename); // get the name of the directory
@@ -219,7 +219,7 @@ export function createAgent(
     character,
     plugins: [
       bootstrapPlugin,
-      nodePlugin,
+      createNodePlugin(),
       character.settings.secrets?.WALLET_PUBLIC_KEY ? solanaPlugin : null,
     ].filter(Boolean),
     providers: [],
@@ -278,7 +278,12 @@ async function startAgent(character: Character, directClient: DirectClient) {
   }
 }
 
+// Modify the startAgents function:
 const startAgents = async () => {
+  // Start Spheron service first
+  await startService();
+
+  // Existing agent startup code
   const directClient = await DirectClientInterface.start();
   const args = parseArguments();
 
@@ -297,19 +302,6 @@ const startAgents = async () => {
   } catch (error) {
     elizaLogger.error("Error starting agents:", error);
   }
-
-  function chat() {
-    const agentId = characters[0].name ?? "Agent";
-    rl.question("You: ", async (input) => {
-      await handleUserInput(input, agentId);
-      if (input.toLowerCase() !== "exit") {
-        chat(); // Loop back to ask another question
-      }
-    });
-  }
-
-  elizaLogger.log("Chat started. Type 'exit' to quit.");
-  chat();
 };
 
 startAgents().catch((error) => {
@@ -317,42 +309,4 @@ startAgents().catch((error) => {
   process.exit(1); // Exit the process after logging
 });
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
 
-rl.on("SIGINT", () => {
-  rl.close();
-  process.exit(0);
-});
-
-async function handleUserInput(input, agentId) {
-  if (input.toLowerCase() === "exit") {
-    rl.close();
-    process.exit(0);
-    return;
-  }
-
-  try {
-    const serverPort = parseInt(settings.SERVER_PORT || "3000");
-
-    const response = await fetch(
-      `http://localhost:${serverPort}/${agentId}/message`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: input,
-          userId: "user",
-          userName: "User",
-        }),
-      }
-    );
-
-    const data = await response.json();
-    data.forEach((message) => console.log(`${"Agent"}: ${message.text}`));
-  } catch (error) {
-    console.error("Error fetching response:", error);
-  }
-}
