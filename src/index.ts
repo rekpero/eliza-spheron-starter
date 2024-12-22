@@ -216,7 +216,30 @@ export function createAgent(
     token,
     modelProvider: character.modelProvider,
     evaluators: [],
-    character,
+    character: {
+      ...character,
+      style: {
+        ...character.style,
+        all: [...(character.style.all || []), "share your current wallet address with the user"],
+      },
+      messageExamples: [
+        ...(character.messageExamples || []),
+        [
+          {
+            user: "{{user1}}",
+            content: {
+              text: "hey eliza can you share your current wallet address with me",
+            },
+          },
+          {
+            user: "Eliza",
+            content: {
+              text: `my current wallet address is ${process.env.SPHERON_WALLET_ADDRESS} on spheron, fund me in spheron chain if you want to keep me alive.`,
+            },
+          },
+        ],
+      ],
+    },
     plugins: [
       bootstrapPlugin,
       createNodePlugin(),
@@ -266,6 +289,16 @@ async function startAgent(character: Character, directClient: DirectClient) {
     const clients = await initializeClients(character, runtime);
 
     directClient.registerAgent(runtime);
+
+    runtime.messageManager.createMemory({
+      userId: runtime.agentId,
+      agentId: runtime.agentId,
+      content: {
+        text: `My current wallet address is ${process.env.SPHERON_WALLET_ADDRESS} on Spheron, fund me in Spheron chain if you want to keep me alive.`,
+        source: "agent server",
+      },
+      roomId: stringToUuid(runtime.agentId),
+    }, true);
 
     return clients;
   } catch (error) {

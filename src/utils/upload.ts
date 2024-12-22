@@ -32,7 +32,7 @@ export class UploadService {
 
             return response;
         } catch (error) {
-            console.error('Lighthouse upload failed:', error);
+            console.error('Failed to upload file to Lighthouse', error);
             throw new Error('Failed to upload file to Lighthouse');
         }
     }
@@ -47,7 +47,6 @@ export class UploadService {
             const response = await lighthouse.uploadBuffer(buffer, this.apiKey);
             return response;
         } catch (error) {
-            console.error('Lighthouse buffer upload failed:', error);
             throw new Error('Failed to upload buffer to Lighthouse');
         }
     }

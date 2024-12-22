@@ -26,7 +26,7 @@
     "@ai16z/plugin-starknet": "0.1.5-alpha.5",
     "@ai16z/plugin-web-search": "0.1.5-alpha.5",
     "@lighthouse-web3/sdk": "^0.3.7",
-    "@spheron/protocol-sdk": "^1.2.2",
+    "@spheron/protocol-sdk": "^1.2.3",
     "amqplib": "^0.10.5",
     "better-sqlite3": "^11.5.0",
     "cors": "^2.8.5",

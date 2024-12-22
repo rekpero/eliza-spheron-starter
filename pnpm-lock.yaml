@@ -60,8 +60,8 @@ importers:
         specifier: ^0.3.7
         version: 0.3.7(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       '@spheron/protocol-sdk':
-        specifier: ^1.2.2
-        version: 1.2.2(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+        specifier: ^1.2.3
+        version: 1.2.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
       amqplib:
         specifier: ^0.10.5
         version: 0.10.5
@@ -1950,8 +1950,8 @@ packages:
   '@solana/web3.js@1.95.8':
     resolution: {integrity: sha512-sBHzNh7dHMrmNS5xPD1d0Xa2QffW/RXaxu/OysRXBfwTp+LYqGGmMtCYYwrHPrN5rjAmJCsQRNAwv4FM0t3B6g==}
 
-  '@spheron/protocol-sdk@1.2.2':
-    resolution: {integrity: sha512-JPj2i3Sjm1sWEa24Ym9LMOAiIziFxckTT2D6VLscDJMqUNLzIZ6lAzySUXFT/xTbwxnZZETEYW7VIsZCARtylw==}
+  '@spheron/protocol-sdk@1.2.3':
+    resolution: {integrity: sha512-aZ7A/D3MuhTHiV5nfavnxOkmO61APkVZiJoLm0+EgsS0z1fFMSO9O6QdW0VCA6T75ajyAagXPJgr8U/VVRVp3w==}
 
   '@starknet-io/types-js@0.7.7':
     resolution: {integrity: sha512-WLrpK7LIaIb8Ymxu6KF/6JkGW1sso988DweWu7p5QY/3y7waBIiPvzh27D9bX5KIJNRDyOoOVoHVEKYUYWZ/RQ==}
@@ -9343,7 +9343,7 @@ snapshots:
       - encoding
       - utf-8-validate
 
-  '@spheron/protocol-sdk@1.2.2(bufferutil@4.0.8)(utf-8-validate@5.0.10)':
+  '@spheron/protocol-sdk@1.2.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)':
     dependencies:
       base64-js: 1.5.1
       ethers: 6.13.4(bufferutil@4.0.8)(utf-8-validate@5.0.10)

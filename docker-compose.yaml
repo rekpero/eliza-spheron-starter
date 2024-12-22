@@ -18,5 +18,5 @@ services:
       - SPHERON_WALLET_ADDRESS=
       - SPHERON_PROXY_PORT=3040
       - CHARACTER_FILE_URL=https://bafkreigpozbiyu57rzweve4eijfoornm42ljz2lg4jfyygetjajyef6ihy.ipfs.w3s.link/
-      # - LIGHTHOUSE_API_KEY=
-      # - TELEGRAM_BOT_TOKEN=
+      - LIGHTHOUSE_API_KEY=
+      - TELEGRAM_BOT_TOKEN=

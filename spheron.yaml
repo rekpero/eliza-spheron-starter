@@ -16,9 +16,9 @@ services:
       - SPHERON_PRIVATE_KEY=
       - SPHERON_WALLET_ADDRESS=
       - SPHERON_PROXY_PORT=3040
+      - LIGHTHOUSE_API_KEY=
       - CHARACTER_FILE_URL=https://bafkreigpozbiyu57rzweve4eijfoornm42ljz2lg4jfyygetjajyef6ihy.ipfs.w3s.link/
-      # - LIGHTHOUSE_API_KEY=
-      # - TELEGRAM_BOT_TOKEN=
+      - TELEGRAM_BOT_TOKEN=
 profiles:
   name: eliza-spheron-starter
   duration: 14min
@@ -37,8 +37,6 @@ profiles:
           - size: 100Gi
   placement:
     westcoast:
-      attributes:
-        region: us-central
       pricing:
         eliza-spheron-starter:
           token: CST

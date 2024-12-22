@@ -6,8 +6,12 @@ import { UploadService } from "./upload.ts";
 import { createProxyServer } from "../proxy/index.ts";
 import { computeConfig } from "../compute.ts";
 import { ethers } from "ethers";
+import { fileURLToPath } from "url";
 
 console.log("Compute Config for Agent: ", computeConfig);
+
+const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
+const __dirname = path.dirname(__filename); // get the name of the directory
 
 export interface ISpheronService {
     getActiveLeases(): Promise<any>;
@@ -322,7 +326,7 @@ async function rotateWalletAndFunds(spheronService: SpheronService, minimumDepos
 
         // Withdraw unlocked CST from current wallet
         await spheronService.withdraw(withdrawalAmount.toString(), token);
-        elizaLogger.info("Withdrawn all the current funds from current wallet, waiting for sometime...");
+        elizaLogger.info(`Withdrawn all the current funds (${withdrawalAmount} USD) from current wallet, waiting for sometime...`);
         // Wait a few seconds for withdrawal to process
         await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -333,7 +337,7 @@ async function rotateWalletAndFunds(spheronService: SpheronService, minimumDepos
 
         // Get the total balance after withdrawal
         const totalBalance = await cstContract.balanceOf(oldWallet.address);
-        elizaLogger.info("Total balance after withdrawal: ", totalBalance);
+        elizaLogger.info(`Total balance after withdrawal: ${(Number(totalBalance) / Number(divisor))} USD`);
         // Transfer all CST tokens to new wallet
         if (totalBalance > 0) {
             const cstTx = await cstContract.transfer(newWallet.publicKey, totalBalance);
@@ -345,7 +349,7 @@ async function rotateWalletAndFunds(spheronService: SpheronService, minimumDepos
         const ethBalance = await provider.getBalance(oldWallet.address);
         const reserveAmount = ethers.parseEther("0.001");
         const transferAmount = ethBalance - reserveAmount;
-        elizaLogger.info("ETH balance on the current agent wallet: ", ethBalance);
+        elizaLogger.info(`ETH balance on the current agent wallet: ${parseFloat(ethers.formatEther(transferAmount)).toFixed(2)} ETH`);
 
         if (transferAmount > 0) {
             const ethTx = await oldWallet.sendTransaction({
@@ -365,7 +369,7 @@ async function rotateWalletAndFunds(spheronService: SpheronService, minimumDepos
 
         // Deposit minimum amount to new wallet
         await newSpheronService.deposit(minimumDepositAmount, token);
-        elizaLogger.info("Deposited minimum amount to new agent wallet, waiting for sometime...");
+        elizaLogger.info(`Deposited minimum amount (${minimumDepositAmount} USD) to new agent wallet, waiting for sometime...`);
         // Wait a few seconds for withdrawal to process
         await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -409,17 +413,17 @@ async function monitorAndRedeployIfNeeded(spheronService: SpheronService) {
             try {
                 // Upload SQLite database to Lighthouse
                 if (process.env.LIGHTHOUSE_API_KEY) {
-                    const uploadService = new UploadService(process.env.LIGHTHOUSE_API_KEY || '');
-                    const dbPath = path.join(__dirname, "../data/db.sqlite");
-
                     try {
+                        const uploadService = new UploadService(process.env.LIGHTHOUSE_API_KEY || '');
+                        const dbPath = path.join(__dirname, "../../data/db.sqlite");
+
                         const uploadResponse = await uploadService.upload(dbPath);
                         elizaLogger.success(`Database uploaded. Hash: ${uploadResponse.data.Hash}`);
 
                         process.env.BACKUP_DB_URL = `https://gateway.lighthouse.storage/ipfs/${uploadResponse.data.Hash}`;
                     } catch (error) {
-                        elizaLogger.error("Failed to upload database:", error);
-                        return;
+                        console.error('Failed to upload backup database:', error);
+                        elizaLogger.error(`Failed to upload backup database: ${error.message}`);
                     }
                 }
                 const { newWallet, newSpheronService } = await rotateWalletAndFunds(spheronService, '15', 'CST');
@@ -429,6 +433,7 @@ async function monitorAndRedeployIfNeeded(spheronService: SpheronService) {
                 config.env = [
                     ...Object.entries(process.env)
                         .filter(([name]) => name === name.toUpperCase())
+                        .filter(([name]) => !['SPHERON_WALLET_ADDRESS', 'SPHERON_PRIVATE_KEY'].includes(name))  // Filter out existing wallet credentials
                         .map(([name, value]) => ({ name, value: value || '' })),
                     ...(config.env || []),
                     { name: 'SPHERON_WALLET_ADDRESS', value: newWallet.publicKey },
@@ -477,7 +482,7 @@ async function monitorAndRedeployIfNeeded(spheronService: SpheronService) {
                     lock.release();
                     elizaLogger.info("Agent creation lock released");
                     process.exit(0);
-                }, 30000);
+                }, 10000);
             }
         } else {
             const minutes = Math.floor(remainingTime / 60);
@@ -492,7 +497,6 @@ async function monitorAndRedeployIfNeeded(spheronService: SpheronService) {
 }
 
 export const startService = async () => {
-    console.log("SPHERON_PROVIDER_PROXY_URL: ", process.env.SPHERON_PROVIDER_PROXY_URL);
     if (!process.env.SPHERON_PROVIDER_PROXY_URL) {
         console.log("SPHERON_PROVIDER_PROXY_URL is not set, starting proxy server");
         // Initialize proxy server
