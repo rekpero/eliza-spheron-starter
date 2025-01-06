@@ -12,7 +12,6 @@ services:
     environment:
       - OPENROUTER_API_KEY=
       - OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct
-      - TWITTER_POLL_INTERVAL=1
       - SERVER_PORT=3000
       - SPHERON_PRIVATE_KEY=
       - SPHERON_WALLET_ADDRESS=
@@ -20,3 +19,4 @@ services:
       - CHARACTER_FILE_URL=https://bafkreigpozbiyu57rzweve4eijfoornm42ljz2lg4jfyygetjajyef6ihy.ipfs.w3s.link/
       - LIGHTHOUSE_API_KEY=
       - TELEGRAM_BOT_TOKEN=
+      - COMPUTE_CONFIG=ewogICJuYW1lIjogImVsaXphLXNwaGVyb24tc3RhcnRlciIsCiAgImltYWdlIjogInJla3Blcm8vZWxpemEtc3BoZXJvbi1zdGFydGVyOmxhdGVzdCIsCiAgInBvcnRzIjogWwogICAgewogICAgICAiY29udGFpbmVyUG9ydCI6IDMwMDAsCiAgICAgICJzZXJ2aWNlUG9ydCI6IDMwMDAKICAgIH0KICBdLAogICJlbnYiOiBbXSwKICAiY29tcHV0ZVJlc291cmNlcyI6IHsKICAgICJjcHUiOiA0LAogICAgIm1lbW9yeSI6ICI4R2kiLAogICAgInN0b3JhZ2UiOiAiMTAwR2kiCiAgfSwKICAiZHVyYXRpb24iOiAiMWgiLAogICJtb2RlIjogInByb3ZpZGVyIiwKICAicmVkZXBsb3lUaHJlc2hvbGQiOiA2MDAwMDAsCiAgImRlcGxveU1vbml0b3JJbnRlcnZhbCI6IDMwMDAwCn0

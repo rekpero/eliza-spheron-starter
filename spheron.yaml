@@ -19,6 +19,7 @@ services:
       - LIGHTHOUSE_API_KEY=
       - CHARACTER_FILE_URL=https://bafkreigpozbiyu57rzweve4eijfoornm42ljz2lg4jfyygetjajyef6ihy.ipfs.w3s.link/
       - TELEGRAM_BOT_TOKEN=
+      - COMPUTE_CONFIG=ewogICJuYW1lIjogImVsaXphLXNwaGVyb24tc3RhcnRlciIsCiAgImltYWdlIjogInJla3Blcm8vZWxpemEtc3BoZXJvbi1zdGFydGVyOmxhdGVzdCIsCiAgInBvcnRzIjogWwogICAgewogICAgICAiY29udGFpbmVyUG9ydCI6IDMwMDAsCiAgICAgICJzZXJ2aWNlUG9ydCI6IDMwMDAKICAgIH0KICBdLAogICJlbnYiOiBbXSwKICAiY29tcHV0ZVJlc291cmNlcyI6IHsKICAgICJjcHUiOiA0LAogICAgIm1lbW9yeSI6ICI4R2kiLAogICAgInN0b3JhZ2UiOiAiMTAwR2kiCiAgfSwKICAiZHVyYXRpb24iOiAiMWgiLAogICJtb2RlIjogInByb3ZpZGVyIiwKICAicmVkZXBsb3lUaHJlc2hvbGQiOiA2MDAwMDAsCiAgImRlcGxveU1vbml0b3JJbnRlcnZhbCI6IDMwMDAwCn0
 profiles:
   name: eliza-spheron-starter
   duration: 14min

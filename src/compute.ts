@@ -14,6 +14,6 @@ export const computeConfig: ComputeConfig = {
     },
     duration: "1h",
     mode: "provider",
-    redeployThreshold: 10 * 60,
-    deployMonitorInterval: 30 * 1000,
+    redeployThreshold: 600000,
+    deployMonitorInterval: 30000,
 }

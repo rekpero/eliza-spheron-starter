@@ -4,11 +4,12 @@ import { elizaLogger } from "@ai16z/eliza";
 import path from "path";
 import { UploadService } from "./upload.ts";
 import { createProxyServer } from "../proxy/index.ts";
-import { computeConfig } from "../compute.ts";
 import { ethers } from "ethers";
 import { fileURLToPath } from "url";
 
+const computeConfig = JSON.parse(Buffer.from(process.env.COMPUTE_CONFIG || "", 'base64').toString()) as ComputeConfig;
 console.log("Compute Config for Agent: ", computeConfig);
+
 
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename); // get the name of the directory
@@ -397,7 +398,7 @@ async function monitorAndRedeployIfNeeded(spheronService: SpheronService) {
         const deploymentId = lease.leaseId;
         const remainingTime = await spheronService.getDeploymentRemainingTime(deploymentId);
 
-        if (remainingTime <= computeConfig.redeployThreshold) {
+        if (remainingTime <= computeConfig.redeployThreshold / 1000) {
             const minutes = Math.floor(remainingTime / 60);
             const seconds = remainingTime % 60;
             elizaLogger.log(`New Agent needs to be deployed (${minutes}m ${seconds}s remaining)`);
@@ -429,7 +430,7 @@ async function monitorAndRedeployIfNeeded(spheronService: SpheronService) {
                 const { newWallet, newSpheronService } = await rotateWalletAndFunds(spheronService, '15', 'CST');
 
                 // Generate new deployment config based on environment
-                const config = computeConfig;
+                const config: ComputeConfig = computeConfig;
                 config.env = [
                     ...Object.entries(process.env)
                         .filter(([name]) => name === name.toUpperCase())
